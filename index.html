@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Motion Extractor</title>
+		<link rel="stylesheet" href="src/style.css" />
+	</head>
+	<body class="p-[10px]">
+		<input
+			class="border-solid border-[1px] border-gray-500 rounded-sm bg-blue-500 text-white font-semibold"
+			type="file"
+			id="videoInput"
+			accept="video/*"
+		/>
+		<video loop id="video" style="display: none"></video>
+		<div class="grid grid-cols-2">
+			<canvas class="w-full" id="inputCanvas"></canvas>
+			<canvas class="w-full" id="outputCanvas"></canvas>
+		</div>
+
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>
