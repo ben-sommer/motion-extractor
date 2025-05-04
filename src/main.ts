@@ -12,7 +12,7 @@ const outputCtx = outputCanvas.getContext("2d")!;
 
 // Variables for motion detection
 let prevFrameData: Uint8ClampedArray | null = null;
-const blockSize = 10; // Size of each block (10x10 pixels)
+const blockSize = 5; // Size of each block (10x10 pixels)
 
 // Load video when user selects it
 videoInput.addEventListener("change", (event: Event) => {
@@ -43,7 +43,7 @@ function drawBoundingBox(
 	y: number,
 	width: number,
 	height: number
-) {
+): void {
 	ctx.beginPath();
 	ctx.rect(x, y, width, height);
 	ctx.lineWidth = 2;
@@ -55,12 +55,16 @@ function drawBoundingBox(
 function detectMotionInBlocks(
 	currentFrameData: Uint8ClampedArray,
 	threshold: number
-): Array<any> {
-	const boxes: Array<any> = [];
+): boolean[][] {
 	const width = video.videoWidth;
 	const height = video.videoHeight;
 	const blockWidth = Math.floor(width / blockSize);
 	const blockHeight = Math.floor(height / blockSize);
+
+	// Create an array to track the motion blocks
+	const motionBlocks: boolean[][] = Array(blockHeight)
+		.fill(null)
+		.map(() => Array(blockWidth).fill(false));
 
 	// Loop through each block to detect changes
 	for (let by = 0; by < blockHeight; by++) {
@@ -105,13 +109,89 @@ function detectMotionInBlocks(
 				if (motionDetected) break;
 			}
 
-			// If motion is detected in the block, draw bounding box
+			// Mark the block as having motion
 			if (motionDetected) {
+				motionBlocks[by][bx] = true;
+			}
+		}
+	}
+
+	return motionBlocks;
+}
+
+// Function to group adjacent moving blocks and get the bounding boxes
+function getBoundingBoxes(
+	motionBlocks: boolean[][]
+): Array<{ x: number; y: number; width: number; height: number }> {
+	const boxes: Array<{
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	}> = [];
+	const visited: boolean[][] = motionBlocks.map((row) =>
+		row.map(() => false)
+	);
+
+	// Helper function to find the bounds of a connected component (group of moving blocks)
+	function findBounds(
+		x: number,
+		y: number
+	): { minX: number; minY: number; maxX: number; maxY: number } {
+		let minX = x,
+			minY = y,
+			maxX = x,
+			maxY = y;
+
+		// Depth-first search to group connected blocks
+		const stack: { x: number; y: number }[] = [{ x, y }];
+		visited[y][x] = true;
+
+		while (stack.length > 0) {
+			const { x, y } = stack.pop()!;
+			minX = Math.min(minX, x);
+			minY = Math.min(minY, y);
+			maxX = Math.max(maxX, x);
+			maxY = Math.max(maxY, y);
+
+			// Check neighboring blocks (up, down, left, right)
+			const neighbors = [
+				{ x: x + 1, y },
+				{ x: x - 1, y },
+				{ x, y: y + 1 },
+				{ x, y: y - 1 },
+			];
+
+			// Add unvisited and moving neighbors to the stack
+			for (const { x: nx, y: ny } of neighbors) {
+				if (
+					nx >= 0 &&
+					ny >= 0 &&
+					nx < motionBlocks[0].length &&
+					ny < motionBlocks.length &&
+					motionBlocks[ny][nx] &&
+					!visited[ny][nx]
+				) {
+					visited[ny][nx] = true;
+					stack.push({ x: nx, y: ny });
+				}
+			}
+		}
+
+		return { minX, minY, maxX, maxY };
+	}
+
+	// Find all connected motion blocks and group them into bounding boxes
+	for (let y = 0; y < motionBlocks.length; y++) {
+		for (let x = 0; x < motionBlocks[y].length; x++) {
+			if (motionBlocks[y][x] && !visited[y][x]) {
+				// Find the bounding box for this group of blocks
+				const bounds = findBounds(x, y);
 				boxes.push({
-					x: blockX,
-					y: blockY,
-					width: blockSize,
-					height: blockSize,
+					x: bounds.minX * blockSize,
+					y: bounds.minY * blockSize,
+					width: (bounds.maxX - bounds.minX + 1) * blockSize,
+					height: (bounds.maxY - bounds.minY + 1) * blockSize,
 				});
 			}
 		}
@@ -137,8 +217,11 @@ function render(): void {
 
 	// If we have a previous frame, detect motion
 	if (prevFrameData) {
-		// Detect motion and get bounding boxes
-		const boxes = detectMotionInBlocks(currentFrameData, 30); // Adjust threshold as needed
+		// Detect motion and get blocks with significant motion
+		const motionBlocks = detectMotionInBlocks(currentFrameData, 30); // Adjust threshold as needed
+
+		// Get bounding boxes for moving objects
+		const boxes = getBoundingBoxes(motionBlocks);
 
 		// Clear the output canvas
 		outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);

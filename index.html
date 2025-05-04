@@ -15,9 +15,12 @@
 		/>
 		<video loop id="video" style="display: none"></video>
 		<div class="grid grid-cols-2">
-			<canvas class="w-full" id="inputCanvas"></canvas>
+			<canvas class="w-full opacity-50" id="inputCanvas"></canvas>
 			<canvas class="w-full hidden" id="webglCanvas"></canvas>
-			<canvas class="w-full" id="outputCanvas"></canvas>
+			<canvas
+				class="w-full translate-x-[-100%]"
+				id="outputCanvas"
+			></canvas>
 		</div>
 
 		<script type="module" src="/src/main.ts"></script>
